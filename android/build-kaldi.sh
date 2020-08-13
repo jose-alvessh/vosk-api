@@ -31,6 +31,7 @@ fi
 
 set -x
 
+OS_NAME=`echo $(uname -s) | tr '[:upper:]' '[:lower:]'`
 ANDROID_NDK_HOME=$ANDROID_SDK_HOME/ndk-bundle
 ANDROID_TOOLCHAIN_PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64
 WORKDIR_X86=`pwd`/build/kaldi_x86
@@ -41,7 +42,6 @@ PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin
 OPENFST_VERSION=1.6.7
 
 mkdir -p $WORKDIR_ARM64/local/lib $WORKDIR_ARM32/local/lib $WORKDIR_X86_64/local/lib $WORKDIR_X86/local/lib
-
 
 # Build standalone CLAPACK since gfortran is missing
 cd build
@@ -60,10 +60,9 @@ cp obj/local/arm64-v8a/*.a ${WORKDIR_ARM64}/local/lib
 cp obj/local/x86_64/*.a ${WORKDIR_X86_64}/local/lib
 cp obj/local/x86/*.a ${WORKDIR_X86}/local/lib
 
-
 # Architecture-specific part
 
-for arch in arm32 arm64 x86_64; do
+for arch in arm32 arm64 x86_64 x86; do
 #for arch in x86_64; do
 
 case $arch in
@@ -103,9 +102,9 @@ case $arch in
           CXX=i686-linux-android21-clang++
           ARCHFLAGS=""
           ;;
-
 esac
 
+# openblas first
 cd $WORKDIR
 git clone -b v0.3.7 --single-branch https://github.com/xianyi/OpenBLAS
 make -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$AR CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 -j4
@@ -113,12 +112,9 @@ make -C OpenBLAS install PREFIX=$WORKDIR/local
 
 # tools directory --> we'll only compile OpenFST
 cd $WORKDIR
-wget -c -T 10 -t 1 http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-${OPENFST_VERSION}.tar.gz || \
-wget -c -T 10 -t 3 http://www.openslr.org/resources/2/openfst-${OPENFST_VERSION}.tar.gz
-
-tar -zxvf openfst-${OPENFST_VERSION}.tar.gz
-cd openfst-${OPENFST_VERSION}
-
+git clone https://github.com/alphacep/openfst
+cd openfst
+autoreconf -i
 CXX=$CXX CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING" ./configure --prefix=${WORKDIR}/local \
      --enable-static --with-pic --disable-bin \
     --enable-lookahead-fsts --enable-ngram-fsts --host=$HOST --build=x86-linux-gnu
@@ -130,6 +126,9 @@ make install
 cd $WORKDIR
 git clone -b android-mix --single-branch https://github.com/alphacep/kaldi
 cd $WORKDIR/kaldi/src
+if [ "`uname`" == "Darwin"  ]; then
+  sed -i.bak -e 's/libfst.dylib/libfst.a/' configure
+fi
 
 CXX=$CXX CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING" ./configure --use-cuda=no \
     --mathlib=OPENBLAS --shared\
