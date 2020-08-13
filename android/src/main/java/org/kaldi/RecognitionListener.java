@@ -25,7 +25,7 @@ public interface RecognitionListener {
     /**
      * Called after the recognition is ended.
      */
-    public void onResult(String hypothesis);
+    public void onResult(String hypothesis, byte[] buffer);
 
     /**
      * Called when an error occurs.

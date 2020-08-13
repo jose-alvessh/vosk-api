@@ -336,8 +336,8 @@ const char* KaldiRecognizer::Result()
     for (int i = 0; i < size; i++) {
         json::JSON word;
         word["word"] = model_->word_syms_->Find(words[i]);
-        word["start"] = (frame_offset_ + times[i].first) * 0.03;
-        word["end"] = (frame_offset_ + times[i].second) * 0.03;
+        word["start"] = ( times[i].first) * 0.03;
+        word["end"] = ( times[i].second) * 0.03;
         word["conf"] = conf[i];
         obj["result"].append(word);
 

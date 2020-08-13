@@ -8,9 +8,6 @@ set(KALDI_SUFFIX "arm_32")
 elseif ("x${ANDROID_ABI}" STREQUAL "xarm64-v8a")
 set(OPENBLAS_ARCH "armv8")
 set(KALDI_SUFFIX "arm_64")
-elseif ("x${ANDROID_ABI}" STREQUAL "xx86")
-set(OPENBLAS_ARCH "atom")
-set(KALDI_SUFFIX "x86")
 else ("x${ANDROID_ABI}" STREQUAL "xarmeabi-v7a")
 set(OPENBLAS_ARCH "atom")
 set(KALDI_SUFFIX "x86_64")
@@ -61,7 +58,7 @@ target_link_libraries( kaldi_jni
              ${LIB_ROOT}/lib/libopenblas_${OPENBLAS_ARCH}-r0.3.7.a
              ${LIB_ROOT}/lib/libclapack.a
              ${LIB_ROOT}/lib/liblapack.a
-             ${LIB_ROOT}/lib/libblas.a
-             ${LIB_ROOT}/lib/libf2c.a
+            ${LIB_ROOT}/lib/libblas.a
+            ${LIB_ROOT}/lib/libf2c.a
              log
              )

@@ -14,10 +14,10 @@
 
 package org.kaldi;
 
-import static java.lang.String.format;
-
-import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Collection;
 import java.util.HashSet;
 
@@ -26,7 +26,6 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 
 /**
  * Main class to access recognizer functions. After configuration this class
@@ -84,7 +83,7 @@ public class SpeechRecognizer {
     }
 
     /**
-     * Removes listener.
+     * Removes listener
      */
     public void removeListener(RecognitionListener listener) {
         synchronized (listeners) {
@@ -146,9 +145,10 @@ public class SpeechRecognizer {
      * @return true if recognition was actually stopped
      */
     public boolean stop() {
+        byte[] buffer = new byte[2];
         boolean result = stopRecognizerThread();
         if (result) {
-            mainHandler.post(new ResultEvent(recognizer.Result(), true));
+            mainHandler.post(new ResultEvent(recognizer.Result(), buffer, true));
         }
         return result;
     }
@@ -203,19 +203,37 @@ public class SpeechRecognizer {
             }
 
             short[] buffer = new short[bufferSize];
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
 
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
                 int nread = recorder.read(buffer, 0, buffer.length);
+
+                byte[] bdata = new byte[nread * 2];
+                ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
+                        put(buffer, 0, nread);
+                try {
+                    outputStream.write(bdata);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
 
                 if (nread < 0) {
                     throw new RuntimeException("error reading audio buffer");
                 } else {
                     boolean isFinal = recognizer.AcceptWaveform(buffer, nread);
                     if (isFinal) {
-                        mainHandler.post(new ResultEvent(recognizer.Result(), true));
+                        byte[] resultBuffer = outputStream.toByteArray();
+                        outputStream = new ByteArrayOutputStream();
+                        mainHandler.post(new ResultEvent(recognizer.Result(), resultBuffer, true));
+                        try {
+                            outputStream.write(bdata);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                     } else {
-                        mainHandler.post(new ResultEvent(recognizer.PartialResult(), false));
+                        byte[] resultBuffer = outputStream.toByteArray();
+                        mainHandler.post(new ResultEvent(recognizer.PartialResult(), resultBuffer, false));
                     }
                 }
 
@@ -249,16 +267,18 @@ public class SpeechRecognizer {
     private class ResultEvent extends RecognitionEvent {
         protected final String hypothesis;
         private final boolean finalResult;
+        private final byte[] buffer;
 
-        ResultEvent(String hypothesis, boolean finalResult) {
+        ResultEvent(String hypothesis, byte[] buffer, boolean finalResult) {
             this.hypothesis = hypothesis;
             this.finalResult = finalResult;
+            this.buffer = buffer;
         }
 
         @Override
         protected void execute(RecognitionListener listener) {
             if (finalResult)
-                listener.onResult(hypothesis);
+                listener.onResult(hypothesis, buffer);
             else
                 listener.onPartialResult(hypothesis);
         }

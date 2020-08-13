@@ -98,6 +98,10 @@ public class Assets {
         assetManager = context.getAssets();
     }
 
+    public void closeAssets() {
+        assetManager.close();
+    }
+
     /**
      * Returns destination path on external storage where assets are copied.
      * 
@@ -131,10 +135,12 @@ public class Assets {
         try {
             Map<String, String> items = new HashMap<String, String>();
             File assetFile = new File(externalDir, ASSET_LIST_NAME);
-            for (String line : readLines(new FileInputStream(assetFile))) {
+            FileInputStream assetFileInputStream = new FileInputStream(assetFile);
+            for (String line : readLines(assetFileInputStream)) {
                 String[] fields = line.split(" ");
                 items.put(fields[0], fields[1]);
             }
+            assetFileInputStream.close();
             return items;
         } catch (IOException e) {
             return Collections.emptyMap();
@@ -169,6 +175,7 @@ public class Assets {
         String line;
         while (null != (line = br.readLine()))
             lines.add(line);
+        br.close();
         return lines;
     }
 
@@ -221,6 +228,7 @@ public class Assets {
             destination.write(buffer, 0, nread);
         }
         destination.close();
+        source.close();
         return destinationFile;
     }
 

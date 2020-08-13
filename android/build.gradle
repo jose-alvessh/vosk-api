@@ -23,7 +23,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 29
         versionCode 5
-        versionName "5.2"
+        versionName "5.3"
         setProperty("archivesBaseName", "kaldi-android-$versionName")
         externalNativeBuild {
             cmake {
@@ -31,7 +31,7 @@ android {
             }
         }
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64', 'x86'
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
         }
     }
     sourceSets {
