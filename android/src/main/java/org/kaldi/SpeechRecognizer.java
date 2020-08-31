@@ -241,7 +241,7 @@ public class SpeechRecognizer {
                     if (isFinal) {
                         byte[] resultBuffer = outputStream.toByteArray();
                         outputStream = new ByteArrayOutputStream();
-                        mainHandler.post(new ResultEvent(recognizer.Result(), resultBuffer, true));
+                        mainHandler.post(new ResultEvent(recognizer.FinalResult(), resultBuffer, true));
                         try {
                             outputStream.write(bdata);
                         } catch (IOException e) {

@@ -62,7 +62,7 @@ cp obj/local/x86/*.a ${WORKDIR_X86}/local/lib
 
 # Architecture-specific part
 
-for arch in arm32 arm64 x86_64 x86; do
+for arch in arm32 arm64 x86_64; do
 #for arch in x86_64; do
 
 case $arch in
@@ -91,15 +91,6 @@ case $arch in
           AR=x86_64-linux-android-ar
           CC=x86_64-linux-android21-clang
           CXX=x86_64-linux-android21-clang++
-          ARCHFLAGS=""
-          ;;
-    x86)
-          BLAS_ARCH=ATOM
-          WORKDIR=$WORKDIR_X86
-          HOST=i686-linux-android
-          AR=i686-linux-android-ar
-          CC=i686-linux-android21-clang
-          CXX=i686-linux-android21-clang++
           ARCHFLAGS=""
           ;;
 esac
