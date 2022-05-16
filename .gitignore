@@ -1,19 +1,25 @@
-# Built application files
-*.apk
-*.ap_
+# Object files
+*.o
 
-# Java class files
-*.class
+# Temp files
+nohup.out
 
 # Gradle files
 .gradle/
-build/
 gradlew
 gradlew.bat
 gradle
-
-# Local configuration file (sdk path, etc)
 local.properties
+gradle.properties
+
+# Android
+android/build
+android/lib/build
+android/model-en/build
+android/model-en/src/main/assets/model-en-us
+android/repo
+*.apk
+*.ap_
 
 # Cmake
 .cxx
@@ -24,12 +30,8 @@ wheelhouse
 __pycache__
 *.egg-info
 python/dist
-python/vosk/*.cc
-python/vosk/*.c
-python/vosk/*.h
-python/vosk/*.i
-python/vosk/vosk.py
-python/vosk/vosk_wrap.cpp
+python/build
+python/vosk/*.so
 python/test/db
 python/test/hyp
 python/test/model
@@ -38,23 +40,32 @@ python/test/result.txt
 python/test/wav.scp
 
 # Java
-*.so
-java/org
-java/*.cc
-java/model-spk/
-java/model/
+*.class
+java/lib/model
+java/demo/model
+java/lib/build
+java/demo/build
 
 # CSharp
-csharp/gen
-csharp/*.exe
-csharp/*.c
-csharp/model/
-csharp/test.wav
+*.dll
+*.so
+*.dylib
+*.nupkg
+csharp/demo/model
+csharp/demo/test.wav
+csharp/demo/bin
+csharp/demo/obj
 
 # Node
-nodejs/vosk_wrap.cc
-nodejs/example/model
-nodejs/example/test.wav
+nodejs/demo/model
+nodejs/demo/model-spk
+nodejs/demo/test.wav
 nodejs/node_modules
 nodejs/package-lock.json
-nodejs/build
+
+# C
+c/test_vosk
+c/test_vosk_speaker
+c/oprofile_data
+c/model
+c/test.wav

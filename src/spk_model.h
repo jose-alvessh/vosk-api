@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SPK_MODEL_H_
-#define SPK_MODEL_H_
+#ifndef VOSK_SPK_MODEL_H
+#define VOSK_SPK_MODEL_H
 
 #include "base/kaldi-common.h"
 #include "online2/online-feature-pipeline.h"
 #include "nnet3/nnet-utils.h"
+#include <atomic>
 
 using namespace kaldi;
 
-class KaldiRecognizer;
+class Recognizer;
 
 class SpkModel {
 
@@ -31,13 +32,16 @@ public:
     void Unref();
 
 protected:
-    friend class KaldiRecognizer;
+    friend class Recognizer;
     ~SpkModel() {};
 
     kaldi::nnet3::Nnet speaker_nnet;
+    kaldi::Vector<BaseFloat> mean;
+    kaldi::Matrix<BaseFloat> transform;
+
     MfccOptions spkvector_mfcc_opts;
 
-    int ref_cnt_;
+    std::atomic<int> ref_cnt_;
 };
 
-#endif /* SPK_MODEL_H_ */
+#endif /* VOSK_SPK_MODEL_H */

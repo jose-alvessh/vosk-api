@@ -1,68 +1,65 @@
 buildscript {
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.5.3'
+        classpath 'com.android.tools.build:gradle:4.2.0'
+        classpath 'com.vanniktech:gradle-maven-publish-plugin:0.18.0'
     }
 }
 
 allprojects {
-  repositories {
-      google()
-      jcenter()
-  }
+    version = '0.3.38'
 }
 
-apply plugin: 'com.android.library'
+subprojects {
 
-android {
-    compileSdkVersion 29
-    defaultConfig {
-        minSdkVersion 21
-        targetSdkVersion 29
-        versionCode 5
-        versionName "5.3"
-        setProperty("archivesBaseName", "kaldi-android-$versionName")
-        externalNativeBuild {
-            cmake {
-                arguments "-DCMAKE_VERBOSE_MAKEFILE=ON", "-DANDROID_ARM_NEON=TRUE", "-DCMAKE_CXX_FLAGS_RELEASE=-O3"
+    apply plugin: 'com.android.library'
+    apply plugin: 'maven-publish'
+    apply plugin: 'com.vanniktech.maven.publish'
+
+    plugins.withId('com.vanniktech.maven.publish') {
+        mavenPublish {
+            group = 'com.alphacephei'
+            version = version
+            sonatypeHost = 's01'
+            androidVariantToPublish = 'release'
+        }
+    }
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    publishing {
+        publications {
+            aar(MavenPublication) {
+                groupId 'com.alphacephei'
+                version version
+                pom {
+                    url = 'http://www.alphacephei.com.com/vosk/'
+                    licenses {
+                        license {
+                            name = 'The Apache License, Version 2.0'
+                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = 'com.alphacephei'
+                            name = 'Alpha Cephei Inc'
+                            email = 'contact@alphacephei.com'
+                        }
+                    }
+                    scm {
+                        connection = 'scm:git:git://github.com/alphacep/vosk-api.git'
+                        url = 'https://github.com/alphacep/vosk-api/'
+                    }
+                }
             }
         }
-        ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
-        }
     }
-    sourceSets {
-         main {
-              java.srcDirs = ['src/main/java', 'build/generated-src']
-         }
-    }
-    externalNativeBuild {
-       cmake {
-           path "CMakeLists.txt"
-       }
-    }
-}
 
-task swig {
-    doLast {
-        mkdir 'build/generated-src/java'
-        mkdir 'build/generated-src/cpp'
-        exec {
-            commandLine 'swig',
-            "-c++",
-            "-java", "-package", "org.kaldi",
-            "-outdir", "build/generated-src/java", "-o", "build/generated-src/cpp/vosk_wrap.cc",
-            "../src/vosk.i"
-        }
-    }
 }
-
-task kaldi(type: Exec) {
-    commandLine './build-kaldi.sh'
-    environment ANDROID_SDK_HOME: android.getSdkDirectory()
-}
-
-preBuild.dependsOn kaldi, swig
