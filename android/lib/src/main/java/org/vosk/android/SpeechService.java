@@ -229,7 +229,7 @@ public class SpeechService {
 
                 if (recognizer.acceptWaveForm(buffer, nread)) {
                     final String result = recognizer.getResult();
-                    mainHandler.post(() -> listener.onResult(result));
+                    mainHandler.post(() -> listener.onResult(result, buffer));
                 } else {
                     final String partialResult = recognizer.getPartialResult();
                     mainHandler.post(() -> listener.onPartialResult(partialResult));
