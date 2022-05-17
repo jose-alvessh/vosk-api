@@ -14,6 +14,11 @@
 
 package org.vosk.android;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
@@ -210,6 +215,7 @@ public class SpeechService {
             }
 
             short[] buffer = new short[bufferSize];
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {

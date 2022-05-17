@@ -14,6 +14,11 @@
 
 package org.vosk.android;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 import android.os.Handler;
 import android.os.Looper;
 
@@ -126,6 +131,7 @@ public class SpeechStreamService {
         public void run() {
 
             byte[] buffer = new byte[bufferSize];
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
@@ -133,10 +139,9 @@ public class SpeechStreamService {
                     int nread = inputStream.read(buffer, 0, buffer.length);
 
                     byte[] bdata = new byte[nread * 2];
-                    ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
-                            put(buffer, 0, nread);
+
                     try {
-                        outputStream.write(bdata);
+                        outputStream.write(buffer);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
