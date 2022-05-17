@@ -224,12 +224,24 @@ public class SpeechService {
                     reset = false;
                 }
 
+                byte[] bdata = new byte[nread * 2];
+                ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
+                        put(buffer, 0, nread);
+                try {
+                    outputStream.write(bdata);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
                 if (nread < 0)
                     throw new RuntimeException("error reading audio buffer");
 
                 if (recognizer.acceptWaveForm(buffer, nread)) {
+                    byte[] resultBuffer = outputStream.toByteArray();
+                    outputStream = new ByteArrayOutputStream();
+
                     final String result = recognizer.getResult();
-                    mainHandler.post(() -> listener.onResult(result, buffer));
+                    mainHandler.post(() -> listener.onResult(result, resultBuffer));
                 } else {
                     final String partialResult = recognizer.getPartialResult();
                     mainHandler.post(() -> listener.onPartialResult(partialResult));

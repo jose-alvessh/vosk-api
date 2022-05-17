@@ -131,13 +131,26 @@ public class SpeechStreamService {
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
                 try {
                     int nread = inputStream.read(buffer, 0, buffer.length);
+
+                    byte[] bdata = new byte[nread * 2];
+                    ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
+                            put(buffer, 0, nread);
+                    try {
+                        outputStream.write(bdata);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
                     if (nread < 0) {
                         break;
                     } else {
                         boolean isSilence = recognizer.acceptWaveForm(buffer, nread);
                         if (isSilence) {
+                            byte[] resultBuffer = outputStream.toByteArray();
+                            outputStream = new ByteArrayOutputStream();
+
                             final String result = recognizer.getResult();
-                            mainHandler.post(() -> listener.onResult(result, buffer));
+                            mainHandler.post(() -> listener.onResult(result, resultBuffer));
                         } else {
                             final String partialResult = recognizer.getPartialResult();
                             mainHandler.post(() -> listener.onPartialResult(partialResult));
