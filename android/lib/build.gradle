@@ -10,7 +10,7 @@ android {
         versionCode 6
         versionName = version
         archivesBaseName = archiveName
-        ndkVersion = "22.1.7171670"
+        ndkVersion = "21.3.6528147"
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -18,10 +18,10 @@ android {
     }
 }
 
-task buildVosk(type: Exec) {
+/*task buildVosk(type: Exec) {
     commandLine './build-vosk.sh'
     environment ANDROID_NDK_HOME: android.getNdkDirectory()
-}
+}*/
 
 dependencies {
     api 'net.java.dev.jna:jna:4.4.0@aar'

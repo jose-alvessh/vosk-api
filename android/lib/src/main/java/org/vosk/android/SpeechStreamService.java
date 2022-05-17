@@ -137,7 +137,7 @@ public class SpeechStreamService {
                         boolean isSilence = recognizer.acceptWaveForm(buffer, nread);
                         if (isSilence) {
                             final String result = recognizer.getResult();
-                            mainHandler.post(() -> listener.onResult(result));
+                            mainHandler.post(() -> listener.onResult(result, buffer));
                         } else {
                             final String partialResult = recognizer.getPartialResult();
                             mainHandler.post(() -> listener.onPartialResult(partialResult));
