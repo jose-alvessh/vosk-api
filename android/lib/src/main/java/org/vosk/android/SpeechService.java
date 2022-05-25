@@ -18,12 +18,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import com.google.common.primitives.Shorts;
+
 
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
 import android.os.Handler;
 import android.os.Looper;
+import java.util.Arrays;
+
 
 import org.vosk.Recognizer;
 
@@ -39,8 +43,9 @@ public class SpeechService {
     private final Recognizer recognizer;
 
     private final int sampleRate;
-    private final static float BUFFER_SIZE_SECONDS = 0.2f;
+    private final static float BUFFER_SIZE_SECONDS = 2f;
     private final int bufferSize;
+    private final int splitBufferSize;
     private final AudioRecord recorder;
 
     private RecognizerThread recognizerThread;
@@ -56,6 +61,8 @@ public class SpeechService {
     public SpeechService(Recognizer recognizer, float sampleRate) throws IOException {
         this.recognizer = recognizer;
         this.sampleRate = (int) sampleRate;
+
+        splitBufferSize = (int) (0.2 * sampleRate);
 
         bufferSize = Math.round(this.sampleRate * BUFFER_SIZE_SECONDS);
         recorder = new AudioRecord(
@@ -215,11 +222,11 @@ public class SpeechService {
             }
 
             short[] buffer = new short[bufferSize];
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
                 int nread = recorder.read(buffer, 0, buffer.length);
+                System.out.println("nread : " + nread );
 
                 if (paused) {
                     continue;
@@ -230,27 +237,49 @@ public class SpeechService {
                     reset = false;
                 }
 
-                byte[] bdata = new byte[nread * 2];
-                ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
-                        put(buffer, 0, nread);
-                try {
-                    outputStream.write(bdata);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
                 if (nread < 0)
                     throw new RuntimeException("error reading audio buffer");
 
-                if (recognizer.acceptWaveForm(buffer, nread)) {
-                    byte[] resultBuffer = outputStream.toByteArray();
-                    outputStream = new ByteArrayOutputStream();
+                for (int i = 0; i < (int) (BUFFER_SIZE_SECONDS/0.2); i++) {
 
-                    final String result = recognizer.getResult();
-                    mainHandler.post(() -> listener.onResult(result, resultBuffer));
-                } else {
-                    final String partialResult = recognizer.getPartialResult();
-                    mainHandler.post(() -> listener.onPartialResult(partialResult));
+                    System.out.println("evaluating : " + i);
+
+                    long time = System.nanoTime();
+
+                    short[] splitted_buffer = new short[splitBufferSize];
+
+                    System.arraycopy(buffer, i*splitBufferSize, splitted_buffer, 0, splitBufferSize);
+
+                    System.out.println("array copy time : " + (System.nanoTime() - time));
+
+                    time = System.nanoTime();
+
+                    boolean accepted = recognizer.acceptWaveForm(
+                            splitted_buffer,
+                            splitBufferSize);
+
+                    System.out.println("Waveform time : " + (System.nanoTime() - time));
+
+                    if (accepted) {
+                        byte[] bdata = new byte[splitBufferSize * 2];
+
+                        ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
+                                put(splitted_buffer);
+                        /*try {
+                            outputStream.write(bdata);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                        byte[] resultBuffer = outputStream.toByteArray();
+                        outputStream = new ByteArrayOutputStream();*/
+
+                        final String result = recognizer.getResult();
+                        mainHandler.post(() -> listener.onResult(result, bdata));
+                    } else {
+                        final String partialResult = recognizer.getPartialResult();
+                        mainHandler.post(() -> listener.onPartialResult(partialResult));
+                    }
                 }
 
                 if (timeoutSamples != NO_TIMEOUT) {

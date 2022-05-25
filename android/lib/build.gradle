@@ -25,6 +25,8 @@ android {
 
 dependencies {
     api 'net.java.dev.jna:jna:4.4.0@aar'
+    compile group: 'com.google.guava', name: 'guava', version: '15.0'
+
 }
 
 //preBuild.dependsOn buildVosk

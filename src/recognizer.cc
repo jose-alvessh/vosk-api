@@ -308,15 +308,15 @@ bool Recognizer::AcceptWaveform(Vector<BaseFloat> &wdata)
         feature_pipeline_->AcceptWaveform(sample_frequency_, r);
         UpdateSilenceWeights();
         decoder_->AdvanceDecoding();
+
+        if (decoder_->EndpointDetected(model_->endpoint_config_)) {
+            return true;
+        }
     }
     samples_processed_ += wdata.Dim();
 
     if (spk_feature_) {
         spk_feature_->AcceptWaveform(sample_frequency_, wdata);
-    }
-
-    if (decoder_->EndpointDetected(model_->endpoint_config_)) {
-        return true;
     }
 
     return false;
