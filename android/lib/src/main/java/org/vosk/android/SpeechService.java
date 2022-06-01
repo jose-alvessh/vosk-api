@@ -39,11 +39,13 @@ public class SpeechService {
     private final Recognizer recognizer;
 
     private final int sampleRate;
-    private final static float BUFFER_SIZE_SECONDS = 0.2f;
+    private final static float BUFFER_SIZE_SECONDS = 0.4f;
     private final int bufferSize;
     private final AudioRecord recorder;
 
     private RecognizerThread recognizerThread;
+
+    private boolean accepted = false;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -94,6 +96,7 @@ public class SpeechService {
      * @return true if recognition was actually started
      */
     public boolean startListening(RecognitionListener listener, int timeout) {
+
         if (null != recognizerThread)
             return false;
 
@@ -163,6 +166,8 @@ public class SpeechService {
         }
     }
 
+
+
     private final class RecognizerThread extends Thread {
 
         private int remainingSamples;
@@ -174,6 +179,7 @@ public class SpeechService {
         RecognitionListener listener;
 
         public RecognizerThread(RecognitionListener listener, int timeout) {
+
             this.listener = listener;
             if (timeout != NO_TIMEOUT)
                 this.timeoutSamples = timeout * sampleRate / 1000;
@@ -203,6 +209,7 @@ public class SpeechService {
             this.reset = true;
         }
 
+
         @Override
         public void run() {
 
@@ -219,8 +226,8 @@ public class SpeechService {
 
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
-                int nread = recorder.read(buffer, 0, buffer.length);
 
+                int nread = recorder.read(buffer, 0, buffer.length);
                 if (paused) {
                     continue;
                 }
@@ -242,11 +249,14 @@ public class SpeechService {
                 if (nread < 0)
                     throw new RuntimeException("error reading audio buffer");
 
-                if (recognizer.acceptWaveForm(buffer, nread)) {
+                accepted = recognizer.acceptWaveForm(buffer, nread);
+
+                if (accepted) {
                     byte[] resultBuffer = outputStream.toByteArray();
                     outputStream = new ByteArrayOutputStream();
 
                     final String result = recognizer.getResult();
+
                     mainHandler.post(() -> listener.onResult(result, resultBuffer));
                 } else {
                     final String partialResult = recognizer.getPartialResult();
