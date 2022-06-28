@@ -27,7 +27,8 @@ import android.os.Looper;
 
 import org.vosk.Recognizer;
 
-import java.io.IOException;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 /**
  * Service that records audio in a thread, passes it to a recognizer and emits
@@ -40,17 +41,18 @@ public class SpeechService {
 
     private final int sampleRate;
     private final static float BUFFER_SIZE_SECONDS = 0.4f;
+    private final static int RECOGNIZER_QUEUE = 5;
     private final int bufferSize;
     private final AudioRecord recorder;
-
-    private final static int OVERFLOW_TIME_INTERVAL = 500;
-    private final static int MAXIMUM_WINDOWS_OVERFLOW = 2;
 
     private RecognizerThread recognizerThread;
 
     private boolean accepted = false;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private RecorderRunning transcriptionThread;
+
 
     /**
      * Creates speech service. Service holds the AudioRecord object, so you
@@ -170,7 +172,6 @@ public class SpeechService {
     }
 
 
-
     private final class RecognizerThread extends Thread {
 
         private int remainingSamples;
@@ -189,6 +190,10 @@ public class SpeechService {
             else
                 this.timeoutSamples = NO_TIMEOUT;
             this.remainingSamples = this.timeoutSamples;
+
+            transcriptionThread = new TranscriptionThread(RECOGNIZER_QUEUE, listener);
+
+            transcriptionThread.start();
         }
 
         public RecognizerThread(RecognitionListener listener) {
@@ -217,6 +222,7 @@ public class SpeechService {
         public void run() {
 
             recorder.startRecording();
+
             if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED) {
                 recorder.stop();
                 IOException ioe = new IOException(
@@ -226,6 +232,7 @@ public class SpeechService {
 
             short[] buffer = new short[bufferSize];
             int overflowCounter = 0;
+
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
 
@@ -244,31 +251,12 @@ public class SpeechService {
                 if (nread < 0)
                     throw new RuntimeException("error reading audio buffer");
 
-                accepted = recognizer.acceptWaveForm(buffer, nread);
-
-                long elapsed_time = System.currentTimeMillis() - time;
-
-                if (elapsed_time > OVERFLOW_TIME_INTERVAL) {
-                    overflowCounter ++;
+                try {
+                    transcriptionThread.dataQueue.put(new RecordingChunk(buffer, nread));
+                } catch (InterruptedException e) {
+                    interrupt();
                 }
 
-                if (overflowCounter > MAXIMUM_WINDOWS_OVERFLOW) {
-                    mainHandler.post(() -> listener.onPossibleOverflow());
-                    overflowCounter = 0;
-                }
-
-                if (accepted) {
-                    final String result = recognizer.getResult();
-                    overflowCounter = 0;
-                    mainHandler.post(() -> listener.onResult(result));
-                } else {
-                    final String partialResult = recognizer.getPartialResult();
-                    mainHandler.post(() -> listener.onPartialResult(partialResult));
-                }
-
-                if (timeoutSamples != NO_TIMEOUT) {
-                    remainingSamples = remainingSamples - nread;
-                }
             }
 
             recorder.stop();
@@ -282,7 +270,57 @@ public class SpeechService {
                     mainHandler.post(() -> listener.onFinalResult(finalResult));
                 }
             }
+        }
 
+        @Override
+        public void interrupt() {
+            transcriptionThread.interrupt();
+            super.interrupt();
+        }
+    }
+
+    private static final class RecordingChunk {
+        private final int nread;
+        private final short[] newBuffer;
+
+        RecordingChunk(short[] newBuffer, int nread) {
+            this.newBuffer = newBuffer;
+            this.nread = nread;
+        }
+
+    }
+
+    class TranscriptionThread extends Thread {
+
+        private BlockingQueue<RecordingChunk> recordingChunksQueue;
+
+        RecognitionListener recognitionListener;
+
+        TranscriptionThread(int queueSize, RecognitionListener recognitionListener) {
+            this.recordingChunksQueue = new ArrayBlockingQueue<>(queueSize);
+            this.recognitionListener = recognitionListener;
+        }
+
+        @Override
+        public void run() {
+
+            while (!isInterrupted()) {
+                try {
+                    RecordingChunk chunk = recordingChunksQueue.take();
+                    if (chunk != null) {
+                        boolean accepted = recognizer.acceptWaveForm(chunk.newBuffer, chunk.nread);
+                        if (accepted) {
+                            final String result = recognizer.getResult();
+                            mainHandler.post(() -> recognitionListener.onResult(result));
+                        } else {
+                            final String partialResult = recognizer.getPartialResult();
+                            mainHandler.post(() -> recognitionListener.onPartialResult(partialResult));
+                        }
+                    }
+                } catch(InterruptedException e){
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
     }
 }
