@@ -155,7 +155,7 @@ public class SpeechStreamService {
                             outputStream = new ByteArrayOutputStream();
 
                             final String result = recognizer.getResult();
-                            mainHandler.post(() -> listener.onResult(result, resultBuffer));
+                            mainHandler.post(() -> listener.onResult(result));
                         } else {
                             final String partialResult = recognizer.getPartialResult();
                             mainHandler.post(() -> listener.onPartialResult(partialResult));

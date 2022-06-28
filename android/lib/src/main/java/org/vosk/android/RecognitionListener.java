@@ -27,7 +27,7 @@ public interface RecognitionListener {
     /**
      * Called after silence occured.
      */
-    public void onResult(String hypothesis, byte[] buffer);
+    public void onResult(String hypothesis);
 
     /**
      * Called after stream end.
@@ -43,4 +43,7 @@ public interface RecognitionListener {
      * Called after timeout expired
      */
     void onTimeout();
+
+
+    void onPossibleOverflow();
 }

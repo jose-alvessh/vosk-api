@@ -43,6 +43,9 @@ public class SpeechService {
     private final int bufferSize;
     private final AudioRecord recorder;
 
+    private final static int OVERFLOW_TIME_INTERVAL = 500;
+    private final static int MAXIMUM_WINDOWS_OVERFLOW = 2;
+
     private RecognizerThread recognizerThread;
 
     private boolean accepted = false;
@@ -222,10 +225,11 @@ public class SpeechService {
             }
 
             short[] buffer = new short[bufferSize];
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
+            int overflowCounter = 0;
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
+
+                long time = System.currentTimeMillis();
 
                 int nread = recorder.read(buffer, 0, buffer.length);
                 if (paused) {
@@ -237,27 +241,26 @@ public class SpeechService {
                     reset = false;
                 }
 
-                byte[] bdata = new byte[nread * 2];
-                ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
-                        put(buffer, 0, nread);
-                try {
-                    outputStream.write(bdata);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
                 if (nread < 0)
                     throw new RuntimeException("error reading audio buffer");
 
                 accepted = recognizer.acceptWaveForm(buffer, nread);
 
+                long elapsed_time = System.currentTimeMillis() - time;
+
+                if (elapsed_time > OVERFLOW_TIME_INTERVAL) {
+                    overflowCounter ++;
+                }
+
+                if (overflowCounter > MAXIMUM_WINDOWS_OVERFLOW) {
+                    mainHandler.post(() -> listener.onPossibleOverflow());
+                    overflowCounter = 0;
+                }
+
                 if (accepted) {
-                    byte[] resultBuffer = outputStream.toByteArray();
-                    outputStream = new ByteArrayOutputStream();
-
                     final String result = recognizer.getResult();
-
-                    mainHandler.post(() -> listener.onResult(result, resultBuffer));
+                    overflowCounter = 0;
+                    mainHandler.post(() -> listener.onResult(result));
                 } else {
                     final String partialResult = recognizer.getPartialResult();
                     mainHandler.post(() -> listener.onPartialResult(partialResult));
