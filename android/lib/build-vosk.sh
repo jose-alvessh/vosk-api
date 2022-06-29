@@ -32,7 +32,7 @@ WORKDIR_BASE=`pwd`/build
 PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/${OS_NAME}-x86_64/bin:$PATH
 OPENFST_VERSION=1.8.0
 
-for arch in armeabi-v7a arm64-v8a x86_64 x86; do
+for arch in armeabi-v7a arm64-v8a; do
 
 WORKDIR=${WORKDIR_BASE}/kaldi_${arch}
 
@@ -62,15 +62,6 @@ case $arch in
           RANLIB=llvm-ranlib
           CC=x86_64-linux-android21-clang
           CXX=x86_64-linux-android21-clang++
-          ARCHFLAGS=""
-          ;;
-    x86)
-          BLAS_ARCH=ATOM
-          HOST=i686-linux-android
-          AR=llvm-ar
-          RANLIB=llvm-ranlib
-          CC=i686-linux-android21-clang
-          CXX=i686-linux-android21-clang++
           ARCHFLAGS=""
           ;;
 esac

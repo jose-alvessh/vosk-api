@@ -43,4 +43,16 @@ public interface RecognitionListener {
      * Called after timeout expired
      */
     void onTimeout();
+
+    /**
+     * Called when the log queue has more than one element and therefore the transciption is delayed
+     */
+
+    void onTransciptionDelayed(float chunksDelay);
+
+    /**
+     * Called when the queue is full and then we are losing data
+     */
+
+    void onTranscriptionFailed();
 }

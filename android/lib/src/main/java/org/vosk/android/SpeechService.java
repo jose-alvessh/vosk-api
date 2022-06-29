@@ -14,6 +14,11 @@
 
 package org.vosk.android;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
@@ -22,7 +27,8 @@ import android.os.Looper;
 
 import org.vosk.Recognizer;
 
-import java.io.IOException;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 /**
  * Service that records audio in a thread, passes it to a recognizer and emits
@@ -34,13 +40,18 @@ public class SpeechService {
     private final Recognizer recognizer;
 
     private final int sampleRate;
-    private final static float BUFFER_SIZE_SECONDS = 0.2f;
+    private final static float BUFFER_SIZE_SECONDS = 0.4f;
+    private final static int RECOGNIZER_QUEUE = 5;
+    private final static int MINIMUM_CHUNKS_FOR_DELAY = 2;
+
     private final int bufferSize;
     private final AudioRecord recorder;
 
     private RecognizerThread recognizerThread;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private TranscriptionThread transcriptionThread;
 
     /**
      * Creates speech service. Service holds the AudioRecord object, so you
@@ -89,6 +100,7 @@ public class SpeechService {
      * @return true if recognition was actually started
      */
     public boolean startListening(RecognitionListener listener, int timeout) {
+
         if (null != recognizerThread)
             return false;
 
@@ -158,6 +170,7 @@ public class SpeechService {
         }
     }
 
+
     private final class RecognizerThread extends Thread {
 
         private int remainingSamples;
@@ -169,12 +182,20 @@ public class SpeechService {
         RecognitionListener listener;
 
         public RecognizerThread(RecognitionListener listener, int timeout) {
+
             this.listener = listener;
             if (timeout != NO_TIMEOUT)
                 this.timeoutSamples = timeout * sampleRate / 1000;
             else
                 this.timeoutSamples = NO_TIMEOUT;
             this.remainingSamples = this.timeoutSamples;
+
+            // Opens the trascription thread that will run the transcription of the audios on a
+            // different thread. This thread will have a queue of audios that will run in a sync
+            // order.
+            transcriptionThread = new TranscriptionThread(RECOGNIZER_QUEUE, listener);
+
+            transcriptionThread.start();
         }
 
         public RecognizerThread(RecognitionListener listener) {
@@ -198,10 +219,12 @@ public class SpeechService {
             this.reset = true;
         }
 
+
         @Override
         public void run() {
 
             recorder.startRecording();
+
             if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED) {
                 recorder.stop();
                 IOException ioe = new IOException(
@@ -213,8 +236,9 @@ public class SpeechService {
 
             while (!interrupted()
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
-                int nread = recorder.read(buffer, 0, buffer.length);
 
+                // Reads the data from the audio recorder
+                int nread = recorder.read(buffer, 0, buffer.length);
                 if (paused) {
                     continue;
                 }
@@ -227,31 +251,102 @@ public class SpeechService {
                 if (nread < 0)
                     throw new RuntimeException("error reading audio buffer");
 
-                if (recognizer.acceptWaveForm(buffer, nread)) {
-                    final String result = recognizer.getResult();
-                    mainHandler.post(() -> listener.onResult(result));
-                } else {
-                    final String partialResult = recognizer.getPartialResult();
-                    mainHandler.post(() -> listener.onPartialResult(partialResult));
-                }
+                // Adds the data read from the AudioRecorder to the queue of chunks of audio
+                try {
+                    // Gets the number of elements of the queue
+                    int chunksInQueue = transcriptionThread.recordingChunksQueue.size();
 
-                if (timeoutSamples != NO_TIMEOUT) {
-                    remainingSamples = remainingSamples - nread;
+                    //Checks if the queue is full
+                    if (chunksInQueue >= RECOGNIZER_QUEUE) {
+                        listener.onTranscriptionFailed();
+                    } else if (chunksInQueue >= MINIMUM_CHUNKS_FOR_DELAY) {
+                        listener.onTransciptionDelayed((float) chunksInQueue * BUFFER_SIZE_SECONDS);
+                    }
+
+                    transcriptionThread.recordingChunksQueue.put(new RecordingChunk(buffer, nread));
+
+                } catch (InterruptedException e) {
+                    interrupt();
                 }
             }
 
             recorder.stop();
+        }
 
-            if (!paused) {
-                // If we met timeout signal that speech ended
-                if (timeoutSamples != NO_TIMEOUT && remainingSamples <= 0) {
-                    mainHandler.post(() -> listener.onTimeout());
-                } else {
-                    final String finalResult = recognizer.getFinalResult();
-                    mainHandler.post(() -> listener.onFinalResult(finalResult));
+        @Override
+        public void interrupt() {
+            transcriptionThread.interrupt();
+            super.interrupt();
+        }
+    }
+
+    /**
+     * Class used to save the audio buffer got from AudioRecorder and the respective number of
+     * shorts read
+     * @param audioBuffer - contains the buffer of audio
+     * @param nread - number of shorts read
+     *
+     */
+    private static final class RecordingChunk {
+        private final int nread;
+        private final short[] audioBuffer;
+
+        RecordingChunk(short[] audioBuffer, int nread) {
+            this.audioBuffer = audioBuffer;
+            this.nread = nread;
+        }
+    }
+
+    /**
+     * This class extends a thread that will be responsible to run the chunks of audio recorded
+     * from the AudioRecorder. It has a BlockingQueue that will make the audios run in the same order
+     * in which they were recorder as well as wait for any of them to be finished before running
+     * the next one (the recognizer instance depends on the context of the previous chunks of audio
+     * and therefore it should transcript the audios sequentially)
+     *
+     * @param - queueSize - size of the queue that will save the chunks of audio
+     * @param - recognitionListener - listener that will get the results from the transcription and
+     * transmit them to the UI
+     */
+    class TranscriptionThread extends Thread {
+
+        private BlockingQueue<RecordingChunk> recordingChunksQueue;
+
+        RecognitionListener recognitionListener;
+
+        TranscriptionThread(int queueSize, RecognitionListener recognitionListener) {
+            this.recordingChunksQueue = new ArrayBlockingQueue<>(queueSize);
+            this.recognitionListener = recognitionListener;
+        }
+
+        @Override
+        public void run() {
+
+            while (!isInterrupted()) {
+                try {
+                    // Takes one chunk of the audio from the saved queue to run it in a model
+                    RecordingChunk chunk = recordingChunksQueue.take();
+                    if (chunk != null) {
+
+                        // Runs the audio chunk on the model to get the transcription
+                        boolean accepted = recognizer.acceptWaveForm(chunk.audioBuffer, chunk.nread);
+
+                        if (accepted) {
+                            // If accepted is true it means that the sentence has ended which
+                            // then means that the model has a result for that specific sentence
+                            final String result = recognizer.getResult();
+                            mainHandler.post(() -> recognitionListener.onResult(result));
+                        } else {
+                            // If not we get a partialResult that allows to detect if the user is
+                            // speaking or not
+                            final String partialResult = recognizer.getPartialResult();
+                            mainHandler.post(() -> recognitionListener.onPartialResult(partialResult));
+                        }
+                    }
+                } catch(InterruptedException e){
+                    Thread.currentThread().interrupt();
                 }
             }
-
         }
     }
 }
