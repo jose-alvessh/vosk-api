@@ -27,7 +27,7 @@ public interface RecognitionListener {
     /**
      * Called after silence occured.
      */
-    public void onResult(String hypothesis);
+    void onResult(String hypothesis);
 
     /**
      * Called after stream end.
@@ -44,6 +44,15 @@ public interface RecognitionListener {
      */
     void onTimeout();
 
+    /**
+     * Called when the log queue has more than one element and therefore the transciption is delayed
+     */
 
-    void onPossibleOverflow();
+    void onTransciptionDelayed(float chunksDelay);
+
+    /**
+     * Called when the queue is full and then we are losing data
+     */
+
+    void onTranscriptionFailed();
 }

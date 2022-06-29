@@ -42,17 +42,16 @@ public class SpeechService {
     private final int sampleRate;
     private final static float BUFFER_SIZE_SECONDS = 0.4f;
     private final static int RECOGNIZER_QUEUE = 5;
+    private final static int MINIMUM_CHUNKS_FOR_DELAY = 2;
+
     private final int bufferSize;
     private final AudioRecord recorder;
 
     private RecognizerThread recognizerThread;
 
-    private boolean accepted = false;
-
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private TranscriptionThread transcriptionThread;
-
 
     /**
      * Creates speech service. Service holds the AudioRecord object, so you
@@ -194,7 +193,6 @@ public class SpeechService {
             // Opens the trascription thread that will run the transcription of the audios on a
             // different thread. This thread will have a queue of audios that will run in a sync
             // order.
-
             transcriptionThread = new TranscriptionThread(RECOGNIZER_QUEUE, listener);
 
             transcriptionThread.start();
@@ -255,12 +253,23 @@ public class SpeechService {
 
                 // Adds the data read from the AudioRecorder to the queue of chunks of audio
                 try {
+                    // Gets the number of elements of the queue
+                    int chunksInQueue = transcriptionThread.recordingChunksQueue.size();
+
+                    //Checks if the queue is full
+                    if (chunksInQueue >= RECOGNIZER_QUEUE) {
+                        listener.onTranscriptionFailed();
+                    } else if (chunksInQueue >= MINIMUM_CHUNKS_FOR_DELAY) {
+                        listener.onTransciptionDelayed((float) chunksInQueue * BUFFER_SIZE_SECONDS);
+                    }
+
                     transcriptionThread.recordingChunksQueue.put(new RecordingChunk(buffer, nread));
+
                 } catch (InterruptedException e) {
                     interrupt();
                 }
-
             }
+
             recorder.stop();
         }
 
