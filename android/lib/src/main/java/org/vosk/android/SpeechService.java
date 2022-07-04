@@ -55,8 +55,6 @@ public class SpeechService {
 
     RecognitionListener listener;
 
-    private boolean isToStopRecognizing = false;
-
     /**
      * Creates speech service. Service holds the AudioRecord object, so you
      * need to call {@link #shutdown()} in order to properly finalize it.
@@ -226,7 +224,6 @@ public class SpeechService {
 
         @Override
         public void run() {
-            isToStopRecognizing = false;
             recorder.startRecording();
 
             if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED) {
@@ -249,7 +246,7 @@ public class SpeechService {
                 }
 
                 if (reset) {
-                    transcriptionThread.isToResetRecognizer();
+                    transcriptionThread.resetRecognizer();
                     reset = false;
                 }
 
@@ -263,12 +260,10 @@ public class SpeechService {
 
                     //Checks if the queue is full
                     if (chunksInQueue >= RECOGNIZER_QUEUE) {
-                        transcriptionThread.isToResetRecognizer();
-                        isToStopRecognizing = true;
+                        transcriptionThread.resetRecognizer();
                         if (listener != null) {
                             transcriptionThread.recordingChunksQueue.clear();
                             listener.onTranscriptionFailed();
-
                         }
                     } else if (chunksInQueue >= MINIMUM_CHUNKS_FOR_DELAY) {
                         if (listener != null) {
@@ -284,9 +279,8 @@ public class SpeechService {
             }
 
             recorder.stop();
-            if (isToStopRecognizing) {
-                listener.onRecognizerStopped();
-            }
+            listener.onRecognizerStopped();
+
         }
 
         @Override
@@ -337,14 +331,14 @@ public class SpeechService {
             this.recognitionListener = recognitionListener;
         }
 
-        private void isToResetRecognizer() {
+        private void resetRecognizer() {
             this.isToResetRecognizer = true;
         }
 
         @Override
         public void run() {
 
-            while (!isInterrupted() && !isToResetRecognizer) {
+            while (!isInterrupted()) {
                 try {
                     // Takes one chunk of the audio from the saved queue to run it in a model
                     RecordingChunk chunk = recordingChunksQueue.take();
@@ -364,12 +358,13 @@ public class SpeechService {
                             final String partialResult = recognizer.getPartialResult();
                             mainHandler.post(() -> recognitionListener.onPartialResult(partialResult));
                         }
-
-                        if (isToResetRecognizer) {
-                            recordingChunksQueue.clear();
-                            isToResetRecognizer = false;
-                        }
                     }
+
+                    if (isToResetRecognizer) {
+                        recordingChunksQueue.clear();
+                        isToResetRecognizer = false;
+                    }
+
                 } catch(InterruptedException e){
                     Thread.currentThread().interrupt();
                 }
