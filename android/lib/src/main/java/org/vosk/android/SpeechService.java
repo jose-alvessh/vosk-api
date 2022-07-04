@@ -41,7 +41,7 @@ public class SpeechService {
 
     private final int sampleRate;
     private final static float BUFFER_SIZE_SECONDS = 0.4f;
-    private final static int RECOGNIZER_QUEUE = 5;
+    private final static int RECOGNIZER_QUEUE = 3;
     private final static int MINIMUM_CHUNKS_FOR_DELAY = 2;
 
     private final int bufferSize;
@@ -52,6 +52,10 @@ public class SpeechService {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private TranscriptionThread transcriptionThread;
+
+    RecognitionListener listener;
+
+    private boolean isToStopRecognizing = false;
 
     /**
      * Creates speech service. Service holds the AudioRecord object, so you
@@ -104,6 +108,7 @@ public class SpeechService {
         if (null != recognizerThread)
             return false;
 
+        this.listener = listener;
         recognizerThread = new RecognizerThread(listener, timeout);
         recognizerThread.start();
         return true;
@@ -170,7 +175,6 @@ public class SpeechService {
         }
     }
 
-
     private final class RecognizerThread extends Thread {
 
         private int remainingSamples;
@@ -222,7 +226,7 @@ public class SpeechService {
 
         @Override
         public void run() {
-
+            isToStopRecognizing = false;
             recorder.startRecording();
 
             if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED) {
@@ -239,12 +243,13 @@ public class SpeechService {
 
                 // Reads the data from the audio recorder
                 int nread = recorder.read(buffer, 0, buffer.length);
+
                 if (paused) {
                     continue;
                 }
 
                 if (reset) {
-                    recognizer.reset();
+                    transcriptionThread.isToResetRecognizer();
                     reset = false;
                 }
 
@@ -258,9 +263,17 @@ public class SpeechService {
 
                     //Checks if the queue is full
                     if (chunksInQueue >= RECOGNIZER_QUEUE) {
-                        listener.onTranscriptionFailed();
+                        transcriptionThread.isToResetRecognizer();
+                        isToStopRecognizing = true;
+                        if (listener != null) {
+                            transcriptionThread.recordingChunksQueue.clear();
+                            listener.onTranscriptionFailed();
+
+                        }
                     } else if (chunksInQueue >= MINIMUM_CHUNKS_FOR_DELAY) {
-                        listener.onTransciptionDelayed((float) chunksInQueue * BUFFER_SIZE_SECONDS);
+                        if (listener != null) {
+                            listener.onTransciptionDelayed((float) chunksInQueue * BUFFER_SIZE_SECONDS);
+                        }
                     }
 
                     transcriptionThread.recordingChunksQueue.put(new RecordingChunk(buffer, nread));
@@ -271,6 +284,9 @@ public class SpeechService {
             }
 
             recorder.stop();
+            if (isToStopRecognizing) {
+                listener.onRecognizerStopped();
+            }
         }
 
         @Override
@@ -314,15 +330,21 @@ public class SpeechService {
 
         RecognitionListener recognitionListener;
 
+        private boolean isToResetRecognizer = false;
+
         TranscriptionThread(int queueSize, RecognitionListener recognitionListener) {
             this.recordingChunksQueue = new ArrayBlockingQueue<>(queueSize);
             this.recognitionListener = recognitionListener;
         }
 
+        private void isToResetRecognizer() {
+            this.isToResetRecognizer = true;
+        }
+
         @Override
         public void run() {
 
-            while (!isInterrupted()) {
+            while (!isInterrupted() && !isToResetRecognizer) {
                 try {
                     // Takes one chunk of the audio from the saved queue to run it in a model
                     RecordingChunk chunk = recordingChunksQueue.take();
@@ -341,6 +363,11 @@ public class SpeechService {
                             // speaking or not
                             final String partialResult = recognizer.getPartialResult();
                             mainHandler.post(() -> recognitionListener.onPartialResult(partialResult));
+                        }
+
+                        if (isToResetRecognizer) {
+                            recordingChunksQueue.clear();
+                            isToResetRecognizer = false;
                         }
                     }
                 } catch(InterruptedException e){
