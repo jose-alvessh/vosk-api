@@ -262,7 +262,6 @@ public class SpeechService {
                     if (chunksInQueue >= RECOGNIZER_QUEUE) {
                         transcriptionThread.resetRecognizer();
                         if (listener != null) {
-                            transcriptionThread.recordingChunksQueue.clear();
                             listener.onTranscriptionFailed();
                         }
                     } else if (chunksInQueue >= MINIMUM_CHUNKS_FOR_DELAY) {
