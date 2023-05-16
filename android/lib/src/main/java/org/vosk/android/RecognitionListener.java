@@ -27,7 +27,7 @@ public interface RecognitionListener {
     /**
      * Called after silence occured.
      */
-    void onResult(String hypothesis);
+    void onResult(String hypothesis, byte[] buffer);
 
     /**
      * Called after stream end.

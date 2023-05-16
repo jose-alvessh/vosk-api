@@ -22,6 +22,9 @@ import java.nio.ByteOrder;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
+import android.media.audiofx.AcousticEchoCanceler;
+
+
 import android.os.Handler;
 import android.os.Looper;
 
@@ -55,21 +58,38 @@ public class SpeechService {
 
     RecognitionListener listener;
 
+    private boolean isToSaveAudios = false;
+
+
     /**
      * Creates speech service. Service holds the AudioRecord object, so you
      * need to call {@link #shutdown()} in order to properly finalize it.
      *
      * @throws IOException thrown if audio recorder can not be created for some reason.
      */
-    public SpeechService(Recognizer recognizer, float sampleRate) throws IOException {
+    public SpeechService(Recognizer recognizer, float sampleRate, boolean isToSaveAudios)
+            throws IOException {
         this.recognizer = recognizer;
         this.sampleRate = (int) sampleRate;
+        this.isToSaveAudios = isToSaveAudios;
 
         bufferSize = Math.round(this.sampleRate * BUFFER_SIZE_SECONDS);
         recorder = new AudioRecord(
-                AudioSource.VOICE_RECOGNITION, this.sampleRate,
+                AudioSource.VOICE_COMMUNICATION, this.sampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, bufferSize * 2);
+
+        if (AcousticEchoCanceler.isAvailable()) {
+            System.out.println("!! echo canceller is available !!");
+
+            int sessionID = recorder.getAudioSessionId();
+            AcousticEchoCanceler acousticEchoCanceler = AcousticEchoCanceler.create(sessionID);
+            acousticEchoCanceler.setEnabled(true);
+
+            if (acousticEchoCanceler.getEnabled()) {
+                System.out.println("!! echo canceler is enabled !!");
+            }
+        }
 
         if (recorder.getState() == AudioRecord.STATE_UNINITIALIZED) {
             recorder.release();
@@ -88,7 +108,7 @@ public class SpeechService {
         if (null != recognizerThread)
             return false;
 
-        recognizerThread = new RecognizerThread(listener);
+        recognizerThread = new RecognizerThread(listener, this.isToSaveAudios);
         recognizerThread.start();
         return true;
     }
@@ -101,14 +121,16 @@ public class SpeechService {
      *
      * @return true if recognition was actually started
      */
-    public boolean startListening(RecognitionListener listener, int timeout) {
+    public boolean startListening(RecognitionListener listener, int timeout, boolean isToSaveAudios) {
 
         if (null != recognizerThread)
             return false;
 
         this.listener = listener;
-        recognizerThread = new RecognizerThread(listener, timeout);
+
+        recognizerThread = new RecognizerThread(listener, timeout, isToSaveAudios);
         recognizerThread.start();
+
         return true;
     }
 
@@ -181,9 +203,12 @@ public class SpeechService {
         private volatile boolean paused = false;
         private volatile boolean reset = false;
 
+        private boolean isToSaveAudios = false;
         RecognitionListener listener;
 
-        public RecognizerThread(RecognitionListener listener, int timeout) {
+        public RecognizerThread(RecognitionListener listener, int timeout, boolean isToSaveAudios) {
+
+            this.isToSaveAudios = isToSaveAudios;
 
             this.listener = listener;
             if (timeout != NO_TIMEOUT)
@@ -195,13 +220,13 @@ public class SpeechService {
             // Opens the trascription thread that will run the transcription of the audios on a
             // different thread. This thread will have a queue of audios that will run in a sync
             // order.
-            transcriptionThread = new TranscriptionThread(RECOGNIZER_QUEUE, listener);
+            transcriptionThread = new TranscriptionThread(RECOGNIZER_QUEUE, listener, isToSaveAudios);
 
             transcriptionThread.start();
         }
 
-        public RecognizerThread(RecognitionListener listener) {
-            this(listener, NO_TIMEOUT);
+        public RecognizerThread(RecognitionListener listener, boolean isToSaveAudios) {
+            this(listener, NO_TIMEOUT, isToSaveAudios);
         }
 
         /**
@@ -325,9 +350,15 @@ public class SpeechService {
 
         private boolean isToResetRecognizer = false;
 
-        TranscriptionThread(int queueSize, RecognitionListener recognitionListener) {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        private boolean isToSaveAudios = false;
+
+        TranscriptionThread(int queueSize, RecognitionListener recognitionListener,
+                            boolean isToSaveAudios) {
             this.recordingChunksQueue = new ArrayBlockingQueue<>(queueSize);
             this.recognitionListener = recognitionListener;
+            this.isToSaveAudios = isToSaveAudios;
         }
 
         private void resetRecognizer() {
@@ -341,7 +372,20 @@ public class SpeechService {
                 try {
                     // Takes one chunk of the audio from the saved queue to run it in a model
                     RecordingChunk chunk = recordingChunksQueue.take();
+
                     if (chunk != null) {
+                        if (isToSaveAudios) {
+                            byte[] bdata = new byte[chunk.nread * 2];
+
+                            ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
+                                    put(chunk.audioBuffer, 0, chunk.nread);
+
+                            try {
+                                outputStream.write(bdata);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
 
                         // Runs the audio chunk on the model to get the transcription
                         boolean accepted = recognizer.acceptWaveForm(chunk.audioBuffer, chunk.nread);
@@ -350,7 +394,15 @@ public class SpeechService {
                             // If accepted is true it means that the sentence has ended which
                             // then means that the model has a result for that specific sentence
                             final String result = recognizer.getResult();
-                            mainHandler.post(() -> recognitionListener.onResult(result));
+
+                            if (isToSaveAudios) {
+                                byte[] resultBuffer = outputStream.toByteArray();
+                                outputStream = new ByteArrayOutputStream();
+                                mainHandler.post(() -> recognitionListener.onResult(result, resultBuffer));
+                            } else {
+                                mainHandler.post(() -> recognitionListener.onResult(result, null));
+                            }
+
                         } else {
                             // If not we get a partialResult that allows to detect if the user is
                             // speaking or not
