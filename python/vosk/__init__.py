@@ -1,5 +1,8 @@
 import os
 import sys
+import srt
+import datetime
+import json
 
 import requests
 from urllib.request import urlretrieve
@@ -10,21 +13,22 @@ from .vosk_cffi import ffi as _ffi
 from tqdm import tqdm
 
 # Remote location of the models and local folders
-MODEL_PRE_URL = 'https://alphacephei.com/vosk/models/'
-MODEL_LIST_URL = MODEL_PRE_URL + 'model-list.json'
-MODEL_DIRS = [os.getenv('VOSK_MODEL_PATH'), Path('/usr/share/vosk'), Path.home() / 'AppData/Local/vosk', Path.home() / '.cache/vosk']
+MODEL_PRE_URL = "https://alphacephei.com/vosk/models/"
+MODEL_LIST_URL = MODEL_PRE_URL + "model-list.json"
+MODEL_DIRS = [os.getenv("VOSK_MODEL_PATH"), Path("/usr/share/vosk"),
+        Path.home() / "AppData/Local/vosk", Path.home() / ".cache/vosk"]
 
 def open_dll():
     dlldir = os.path.abspath(os.path.dirname(__file__))
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         # We want to load dependencies too
-        os.environ["PATH"] = dlldir + os.pathsep + os.environ['PATH']
-        if hasattr(os, 'add_dll_directory'):
+        os.environ["PATH"] = dlldir + os.pathsep + os.environ["PATH"]
+        if hasattr(os, "add_dll_directory"):
             os.add_dll_directory(dlldir)
         return _ffi.dlopen(os.path.join(dlldir, "libvosk.dll"))
-    elif sys.platform == 'linux':
+    elif sys.platform == "linux":
         return _ffi.dlopen(os.path.join(dlldir, "libvosk.so"))
-    elif sys.platform == 'darwin':
+    elif sys.platform == "darwin":
         return _ffi.dlopen(os.path.join(dlldir, "libvosk.dyld"))
     else:
         raise TypeError("Unsupported platform")
@@ -32,23 +36,23 @@ def open_dll():
 _c = open_dll()
 
 def list_models():
-    response = requests.get(MODEL_LIST_URL)
+    response = requests.get(MODEL_LIST_URL, timeout=10)
     for model in response.json():
-        print(model['name']) 
+        print(model["name"])
 
 def list_languages():
-    response = requests.get(MODEL_LIST_URL)
-    languages = set([m['lang'] for m in response.json()])
+    response = requests.get(MODEL_LIST_URL, timeout=10)
+    languages = {m["lang"] for m in response.json()}
     for lang in languages:
         print (lang)
 
-class Model(object):
+class Model:
     def __init__(self, model_path=None, model_name=None, lang=None):
-        if model_path != None:
-            self._handle = _c.vosk_model_new(model_path.encode('utf-8'))
+        if model_path is not None:
+            self._handle = _c.vosk_model_new(model_path.encode("utf-8"))
         else:
             model_path = self.get_model_path(model_name, lang)
-            self._handle = _c.vosk_model_new(model_path.encode('utf-8'))
+            self._handle = _c.vosk_model_new(model_path.encode("utf-8"))
         if self._handle == _ffi.NULL:
             raise Exception("Failed to create a model")
 
@@ -56,7 +60,7 @@ class Model(object):
         _c.vosk_model_free(self._handle)
 
     def vosk_model_find_word(self, word):
-        return _c.vosk_model_find_word(self._handle, word.encode('utf-8'))
+        return _c.vosk_model_find_word(self._handle, word.encode("utf-8"))
 
     def get_model_path(self, model_name, lang):
         if model_name is None:
@@ -73,10 +77,11 @@ class Model(object):
             model_file = [model for model in model_file_list if model == model_name]
             if model_file != []:
                 return Path(directory, model_file[0])
-        response = requests.get(MODEL_LIST_URL)
-        result_model = [model['name'] for model in response.json() if model['name'] == model_name]
+        response = requests.get(MODEL_LIST_URL, timeout=10)
+        result_model = [model["name"] for model in response.json() if model["name"] == model_name]
         if result_model == []:
-            raise Exception("model name %s does not exist" % (model_name))
+            print("model name %s does not exist" % (model_name))
+            sys.exit(1)
         else:
             self.download_model(Path(directory, result_model[0]))
             return Path(directory, result_model[0])
@@ -86,13 +91,16 @@ class Model(object):
             if directory is None or not Path(directory).exists():
                 continue
             model_file_list = os.listdir(directory)
-            model_file = [model for model in model_file_list if match(f"vosk-model(-small)?-{lang}", model)]
+            model_file = [model for model in model_file_list if
+                    match(r"vosk-model(-small)?-{}".format(lang), model)]
             if model_file != []:
                 return Path(directory, model_file[0])
-        response = requests.get(MODEL_LIST_URL)
-        result_model = [model['name'] for model in response.json() if model['lang'] == lang and model['type'] == 'small' and model['obsolete'] == 'false']
+        response = requests.get(MODEL_LIST_URL, timeout=10)
+        result_model = [model["name"] for model in response.json() if
+                model["lang"] == lang and model["type"] == "small" and model["obsolete"] == "false"]
         if result_model == []:
-            raise Exception("lang %s does not exist" % (lang))
+            print("lang %s does not exist" % (lang))
+            sys.exit(1)
         else:
             self.download_model(Path(directory, result_model[0]))
             return Path(directory, result_model[0])
@@ -100,15 +108,16 @@ class Model(object):
     def download_model(self, model_name):
         if not (model_name.parent).exists():
             (model_name.parent).mkdir(parents=True)
-        with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1,
-                desc=(MODEL_PRE_URL + str(model_name.name) + '.zip').split('/')[-1]) as t:
+        with tqdm(unit="B", unit_scale=True, unit_divisor=1024, miniters=1,
+                desc=(MODEL_PRE_URL + str(model_name.name) + ".zip").rsplit("/",
+                    maxsplit=1)[-1]) as t:
             reporthook = self.download_progress_hook(t)
-            urlretrieve(MODEL_PRE_URL + str(model_name.name) + '.zip', str(model_name) + '.zip', 
-                reporthook=reporthook, data=None)
+            urlretrieve(MODEL_PRE_URL + str(model_name.name) + ".zip",
+                    str(model_name) + ".zip", reporthook=reporthook, data=None)
             t.total = t.n
-            with ZipFile(str(model_name) + '.zip', 'r') as model_ref:
+            with ZipFile(str(model_name) + ".zip", "r") as model_ref:
                 model_ref.extractall(model_name.parent)
-            Path(str(model_name) + '.zip').unlink()
+            Path(str(model_name) + ".zip").unlink()
 
     def download_progress_hook(self, t):
         last_b = [0]
@@ -120,10 +129,10 @@ class Model(object):
             return displayed
         return update_to
 
-class SpkModel(object):
+class SpkModel:
 
     def __init__(self, model_path):
-        self._handle = _c.vosk_spk_model_new(model_path.encode('utf-8'))
+        self._handle = _c.vosk_spk_model_new(model_path.encode("utf-8"))
 
         if self._handle == _ffi.NULL:
             raise Exception("Failed to create a speaker model")
@@ -131,15 +140,17 @@ class SpkModel(object):
     def __del__(self):
         _c.vosk_spk_model_free(self._handle)
 
-class KaldiRecognizer(object):
+class KaldiRecognizer:
 
     def __init__(self, *args):
         if len(args) == 2:
             self._handle = _c.vosk_recognizer_new(args[0]._handle, args[1])
-        elif len(args) == 3 and type(args[2]) is SpkModel:
-            self._handle = _c.vosk_recognizer_new_spk(args[0]._handle, args[1], args[2]._handle)
-        elif len(args) == 3 and type(args[2]) is str:
-            self._handle = _c.vosk_recognizer_new_grm(args[0]._handle, args[1], args[2].encode('utf-8'))
+        elif len(args) == 3 and isinstance(args[2], SpkModel):
+            self._handle = _c.vosk_recognizer_new_spk(args[0]._handle,
+                    args[1], args[2]._handle)
+        elif len(args) == 3 and isinstance(args[2], str):
+            self._handle = _c.vosk_recognizer_new_grm(args[0]._handle,
+                    args[1], args[2].encode("utf-8"))
         else:
             raise TypeError("Unknown arguments")
 
@@ -164,6 +175,9 @@ class KaldiRecognizer(object):
     def SetSpkModel(self, spk_model):
         _c.vosk_recognizer_set_spk_model(self._handle, spk_model._handle)
 
+    def SetGrammar(self, grammar):
+        _c.vosk_recognizer_set_grm(self._handle, grammar.encode("utf-8"))
+
     def AcceptWaveform(self, data):
         res = _c.vosk_recognizer_accept_waveform(self._handle, data, len(data))
         if res < 0:
@@ -171,17 +185,43 @@ class KaldiRecognizer(object):
         return res
 
     def Result(self):
-        return _ffi.string(_c.vosk_recognizer_result(self._handle)).decode('utf-8')
+        return _ffi.string(_c.vosk_recognizer_result(self._handle)).decode("utf-8")
 
     def PartialResult(self):
-        return _ffi.string(_c.vosk_recognizer_partial_result(self._handle)).decode('utf-8')
+        return _ffi.string(_c.vosk_recognizer_partial_result(self._handle)).decode("utf-8")
 
     def FinalResult(self):
-        return _ffi.string(_c.vosk_recognizer_final_result(self._handle)).decode('utf-8')
+        return _ffi.string(_c.vosk_recognizer_final_result(self._handle)).decode("utf-8")
 
     def Reset(self):
         return _c.vosk_recognizer_reset(self._handle)
 
+    def SrtResult(self, stream, words_per_line = 7):
+        results = []
+
+        while True:
+            data = stream.read(4000)
+            if len(data) == 0:
+                break
+            if self.AcceptWaveform(data):
+                results.append(self.Result())
+        results.append(self.FinalResult())
+
+        subs = []
+        for res in results:
+            jres = json.loads(res)
+            if not "result" in jres:
+                continue
+            words = jres["result"]
+            for j in range(0, len(words), words_per_line):
+                line = words[j : j + words_per_line]
+                s = srt.Subtitle(index=len(subs),
+                        content=" ".join([l["word"] for l in line]),
+                        start=datetime.timedelta(seconds=line[0]["start"]),
+                        end=datetime.timedelta(seconds=line[-1]["end"]))
+                subs.append(s)
+
+        return srt.compose(subs)
 
 def SetLogLevel(level):
     return _c.vosk_set_log_level(level)
@@ -194,10 +234,10 @@ def GpuInit():
 def GpuThreadInit():
     _c.vosk_gpu_thread_init()
 
-class BatchModel(object):
+class BatchModel:
 
-    def __init__(self, *args):
-        self._handle = _c.vosk_batch_model_new()
+    def __init__(self, model_path, *args):
+        self._handle = _c.vosk_batch_model_new(model_path.encode('utf-8'))
 
         if self._handle == _ffi.NULL:
             raise Exception("Failed to create a model")
@@ -208,7 +248,7 @@ class BatchModel(object):
     def Wait(self):
         _c.vosk_batch_model_wait(self._handle)
 
-class BatchRecognizer(object):
+class BatchRecognizer:
 
     def __init__(self, *args):
         self._handle = _c.vosk_batch_recognizer_new(args[0]._handle, args[1])
@@ -224,7 +264,7 @@ class BatchRecognizer(object):
 
     def Result(self):
         ptr = _c.vosk_batch_recognizer_front_result(self._handle)
-        res = _ffi.string(ptr).decode('utf-8')
+        res = _ffi.string(ptr).decode("utf-8")
         _c.vosk_batch_recognizer_pop(self._handle)
         return res
 

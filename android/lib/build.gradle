@@ -3,11 +3,12 @@ def pomName = "Vosk Android"
 def pomDescription = "Vosk speech recognition library for Android"
 
 android {
-    compileSdkVersion 29
+    namespace 'org.vosk'
+    compileSdkVersion 33
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 29
-        versionCode 6
+        targetSdkVersion 33
+        versionCode 10
         versionName = version
         archivesBaseName = archiveName
         ndkVersion = "21.3.6528147"
@@ -18,38 +19,21 @@ android {
     }
 }
 
-/*task buildVosk(type: Exec) {
+task buildVosk(type: Exec) {
     commandLine './build-vosk.sh'
     environment ANDROID_NDK_HOME: android.getNdkDirectory()
-}*/
+}
 
 dependencies {
-    api 'net.java.dev.jna:jna:4.4.0@aar'
+    api 'net.java.dev.jna:jna:5.13.0@aar'
 }
 
 //preBuild.dependsOn buildVosk
 
-publishing {
-    publications {
-        aar(MavenPublication) {
-            artifactId = archiveName
-            artifact("$buildDir/outputs/aar/$archiveName-release.aar")
-            pom {
-                name = pomName
-                description = pomDescription
-            }
-            //generate pom nodes for dependencies
-            pom.withXml {
-                def dependenciesNode = asNode().appendNode('dependencies')
-                configurations.implementation.allDependencies.each { dependency ->
-                    if (dependency.name != 'unspecified') {
-                        def dependencyNode = dependenciesNode.appendNode('dependency')
-                        dependencyNode.appendNode('groupId', dependency.group)
-                        dependencyNode.appendNode('artifactId', dependency.name)
-                        dependencyNode.appendNode('version', dependency.version)
-                    }
-                }
-            }
-        }
+mavenPublishing {
+    coordinates("com.alphacephei", archiveName, version)
+    pom {
+        name = pomName
+        description = pomDescription
     }
 }

@@ -1,7 +1,6 @@
 package org.vosk;
 
 import com.sun.jna.Native;
-import com.sun.jna.Library;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 import java.io.File;
@@ -23,7 +22,7 @@ public class LibVosk {
             // We have to unpack dependencies
             try {
                 // To get a tmp folder we unpack small library and mark it for deletion
-                File tmpFile = Native.extractFromResourcePath("/win32-x86-64/empty");
+                File tmpFile = Native.extractFromResourcePath("/win32-x86-64/empty", LibVosk.class.getClassLoader());
                 File tmpDir = tmpFile.getParentFile();
                 new File(tmpDir, tmpFile.getName() + ".x").createNewFile();
 
@@ -78,10 +77,20 @@ public class LibVosk {
 
     public static native String vosk_recognizer_partial_result(Pointer recognizer);
 
+    public static native void vosk_recognizer_set_grm(Pointer recognizer, String grammar);
+
     public static native void vosk_recognizer_reset(Pointer recognizer);
 
     public static native void vosk_recognizer_free(Pointer recognizer);
 
+    /**
+     * Set log level for Kaldi messages.
+     *
+     *  @param loglevel the level
+     *     0 - default value to print info and error messages but no debug
+     *     less than 0 - don't print info messages
+     *     greater than 0 - more verbose mode
+     */
     public static void setLogLevel(LogLevel loglevel) {
         vosk_set_log_level(loglevel.getValue());
     }

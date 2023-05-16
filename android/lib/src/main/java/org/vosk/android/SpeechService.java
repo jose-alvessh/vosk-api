@@ -27,8 +27,10 @@ import android.media.audiofx.AcousticEchoCanceler;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.annotation.SuppressLint;
 
 import org.vosk.Recognizer;
+import java.io.IOException;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -67,6 +69,7 @@ public class SpeechService {
      *
      * @throws IOException thrown if audio recorder can not be created for some reason.
      */
+    @SuppressLint("MissingPermission")
     public SpeechService(Recognizer recognizer, float sampleRate, boolean isToSaveAudios)
             throws IOException {
         this.recognizer = recognizer;

@@ -121,6 +121,14 @@ void vosk_recognizer_set_spk_model(VoskRecognizer *recognizer, VoskSpkModel *spk
     ((Recognizer *)recognizer)->SetSpkModel((SpkModel *)spk_model);
 }
 
+void vosk_recognizer_set_grm(VoskRecognizer *recognizer, char const *grammar)
+{
+    if (recognizer == nullptr) {
+       return;
+    }
+    ((Recognizer *)recognizer)->SetGrm(grammar);
+}
+
 int vosk_recognizer_accept_waveform(VoskRecognizer *recognizer, const char *data, int length)
 {
     try {
@@ -195,10 +203,10 @@ void vosk_gpu_thread_init()
 #endif
 }
 
-VoskBatchModel *vosk_batch_model_new()
+VoskBatchModel *vosk_batch_model_new(const char *model_path)
 {
 #if HAVE_CUDA
-    return (VoskBatchModel *)(new BatchModel());
+    return (VoskBatchModel *)(new BatchModel(model_path));
 #else
     return NULL;
 #endif

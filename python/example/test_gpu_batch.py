@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 
 import sys
-import os
-import wave
-from time import sleep
 import json
-from timeit import default_timer as timer
-
 
 from vosk import BatchModel, BatchRecognizer, GpuInit
+from timeit import default_timer as timer
+
+TOT_SAMPLES = 0
 
 GpuInit()
 
-model = BatchModel()
+model = BatchModel("model")
 
-fnames = open(sys.argv[1]).readlines()
-fds = [open(x.strip(), "rb") for x in fnames]
-uids = [fname.strip().split('/')[-1][:-4] for fname in fnames]
-recs = [BatchRecognizer(model, 16000) for x in fnames]
-results = [""] * len(fnames)
+with open(sys.argv[1]) as fn:
+    fnames = fn.readlines()
+    fds = [open(x.strip(), "rb") for x in fnames]
+    uids = [fname.strip().split("/")[-1][:-4] for fname in fnames]
+    recs = [BatchRecognizer(model, 16000) for x in fnames]
+    results = [""] * len(fnames)
+
 ended = set()
-tot_samples = 0
 
 start_time = timer()
 
@@ -36,24 +35,27 @@ while True:
             ended.add(i)
             continue
         recs[i].AcceptWaveform(data)
-        tot_samples += len(data)
+        TOT_SAMPLES += len(data)
 
     # Wait for results from CUDA
     model.Wait()
 
     # Retrieve and add results
     for i, fd in enumerate(fds):
-       res = recs[i].Result()
-       if len(res) != 0:
-           results[i] = results[i] + " " + json.loads(res)['text']
+        res = recs[i].Result()
+        if len(res) != 0:
+            results[i] = results[i] + " " + json.loads(res)["text"]
 
     if len(ended) == len(fds):
         break
 
 end_time = timer()
 
-for i in range(len(results)):
-    print (uids[i], results[i].strip())
+for i, res in enumerate(results):
+    print(uids[i], res.strip())
 
-print ("Processed %.3f seconds of audio in %.3f seconds (%.3f xRT)" % (tot_samples / 16000.0 / 2, end_time - start_time, 
-    (tot_samples / 16000.0 / 2 / (end_time - start_time))), file=sys.stderr)
+print("Processed %.3f seconds of audio in %.3f seconds (%.3f xRT)"
+    % (TOT_SAMPLES / 16000.0 / 2,
+    end_time - start_time,
+    (TOT_SAMPLES / 16000.0 / 2 / (end_time - start_time))),
+    file=sys.stderr)
