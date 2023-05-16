@@ -94,6 +94,8 @@ public class SpeechService {
             }
         }
 
+
+
         if (recorder.getState() == AudioRecord.STATE_UNINITIALIZED) {
             recorder.release();
             throw new IOException(
