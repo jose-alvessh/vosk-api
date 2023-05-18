@@ -23,7 +23,18 @@ subprojects {
         mavenCentral()
     }
 
-  /*  mavenPublishing {
+
+/*    task copyTask(type: Copy) {
+        doLast {
+	from './build/outputs/aar/vosk-android-release.aar'
+        into new File('/home/sword/Projects/SWORD/digital-therapist/speech-recognition-kaldi')
+	}
+    }
+
+
+assemble.dependsOn copyTask
+*/
+/*  mavenPublishing {
         publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.S01, false)
         signAllPublications()
     }

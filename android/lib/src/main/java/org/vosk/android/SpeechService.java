@@ -23,6 +23,8 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
 import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.NoiseSuppressor;
+
 
 
 import android.os.Handler;
@@ -82,20 +84,32 @@ public class SpeechService {
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, bufferSize * 2);
 
-        if (AcousticEchoCanceler.isAvailable()) {
-            System.out.println("!! echo canceller is available !!");
+	int sessionID = recorder.getAudioSessionId();
 
-            int sessionID = recorder.getAudioSessionId();
-            AcousticEchoCanceler acousticEchoCanceler = AcousticEchoCanceler.create(sessionID);
-            acousticEchoCanceler.setEnabled(true);
+    if (AcousticEchoCanceler.isAvailable()) {
+        System.out.println("!! echo canceller is available !!");
 
-            if (acousticEchoCanceler.getEnabled()) {
-                System.out.println("!! echo canceler is enabled !!");
-            }
-        }
+        AcousticEchoCanceler acousticEchoCanceler = AcousticEchoCanceler.create(sessionID);
+        acousticEchoCanceler.setEnabled(true);
+    } else
+        System.out.println("!! echo canceller is NOT available !!");
 
+    if (NoiseSuppressor.isAvailable()) {
+        System.out.println("!! noise supressor is available !!");
 
-
+        NoiseSuppressor noiseSupressor = NoiseSuppressor.create(sessionID);
+        noiseSupressor.setEnabled(true);
+    } else
+        System.out.println("!! noise supressor is NOT available !!");
+/*
+	if (acousticEchoCanceler.getEnabled()) {
+        System.out.println("!! echo canceler is enabled !!");
+    }
+	
+	if (acousticEchoCanceler.getEnabled()) {
+        System.out.println("!! noise supressor is enabled !!");
+    }
+*/
         if (recorder.getState() == AudioRecord.STATE_UNINITIALIZED) {
             recorder.release();
             throw new IOException(

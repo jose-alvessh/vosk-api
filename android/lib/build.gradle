@@ -1,6 +1,8 @@
 def archiveName = "vosk-android"
 def pomName = "Vosk Android"
 def pomDescription = "Vosk speech recognition library for Android"
+def source_dir = "${project.projectDir}/build/outputs/aar/"
+def dest_dir = '/home/sword/Projects/SWORD/digital-therapist/speech-recognition-kaldi'
 
 android {
     namespace 'org.vosk'
@@ -27,6 +29,20 @@ android {
 dependencies {
     api 'net.java.dev.jna:jna:5.13.0@aar'
 }
+
+task copyTask(type: Copy) {
+        System.out.println( "  projectDir:   ${project.projectDir}")
+	System.out.println( "  srcDir:   ${source_dir}")
+	System.out.println( "  destDir:   ${dest_dir}")
+
+	doLast {
+		from ('source_dir')
+		into (new File('dest_dir'))
+	}
+    }
+
+
+assemble.dependsOn copyTask
 
 //preBuild.dependsOn buildVosk
 
