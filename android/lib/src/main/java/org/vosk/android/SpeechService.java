@@ -80,7 +80,7 @@ public class SpeechService {
 
         bufferSize = Math.round(this.sampleRate * BUFFER_SIZE_SECONDS);
         recorder = new AudioRecord(
-                AudioSource.VOICE_COMMUNICATION, this.sampleRate,
+                AudioSource.VOICE_CALL, this.sampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, bufferSize * 2);
 
@@ -101,16 +101,9 @@ public class SpeechService {
         noiseSupressor.setEnabled(true);
     } else
         System.out.println("!! noise supressor is NOT available !!");
-/*
-	if (acousticEchoCanceler.getEnabled()) {
-        System.out.println("!! echo canceler is enabled !!");
-    }
-	
-	if (acousticEchoCanceler.getEnabled()) {
-        System.out.println("!! noise supressor is enabled !!");
-    }
-*/
-        if (recorder.getState() == AudioRecord.STATE_UNINITIALIZED) {
+
+
+    if (recorder.getState() == AudioRecord.STATE_UNINITIALIZED) {
             recorder.release();
             throw new IOException(
                     "Failed to initialize recorder. Microphone might be already in use.");

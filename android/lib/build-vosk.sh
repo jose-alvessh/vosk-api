@@ -32,7 +32,7 @@ WORKDIR_BASE=`pwd`/build
 PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/${OS_NAME}-x86_64/bin:$PATH
 OPENFST_VERSION=1.8.0
 
-for arch in armeabi-v7a arm64-v8a; do
+for arch in arm64-v8a; do
 
 WORKDIR=${WORKDIR_BASE}/kaldi_${arch}
 
@@ -66,40 +66,47 @@ case $arch in
           ;;
 esac
 
+echo $arch
+echo $PATH
+
 mkdir -p $WORKDIR/local/lib
 
 # openblas first
 cd $WORKDIR
+rm rf OpenBLAS
 git clone -b v0.3.13 --single-branch https://github.com/xianyi/OpenBLAS
-make -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$AR CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 -j4
-make -C OpenBLAS install PREFIX=$WORKDIR/local
+make -B -C OpenBLAS TARGET=$BLAS_ARCH ONLY_CBLAS=1 AR=$AR CC=$CC HOSTCC=gcc ARM_SOFTFP_ABI=1 USE_THREAD=0 NUM_THREADS=1 -j4
+make -B -C OpenBLAS TARGET=$BLAS_ARCH install PREFIX=$WORKDIR/local
 
 # CLAPACK
 cd $WORKDIR
+rm -rf clapack
 git clone -b v3.2.1  --single-branch https://github.com/alphacep/clapack
 mkdir -p clapack/BUILD && cd clapack/BUILD
 cmake -DCMAKE_C_FLAGS=$ARCHFLAGS -DCMAKE_C_COMPILER_TARGET=$HOST \
     -DCMAKE_C_COMPILER=$CC -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_AR=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/${OS_NAME}-x86_64/bin/$AR \
     -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
     -DCMAKE_CROSSCOMPILING=True ..
-make -j 8 -C F2CLIBS/libf2c
-make -j 8 -C BLAS/SRC
-make -j 8 -C SRC
+make -B -j 8 -C F2CLIBS/libf2c
+make -B -j 8 -C BLAS/SRC
+make -B -j 8 -C SRC
 find . -name "*.a" | xargs cp -t $WORKDIR/local/lib
 
 # tools directory --> we'll only compile OpenFST
 cd $WORKDIR
+rm -rf openfst
 git clone https://github.com/alphacep/openfst
 cd openfst
 autoreconf -i
 CXX=$CXX CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING" ./configure --prefix=${WORKDIR}/local \
     --enable-shared --enable-static --with-pic --disable-bin \
     --enable-lookahead-fsts --enable-ngram-fsts --host=$HOST --build=x86-linux-gnu
-make -j 8
-make install
+make -B -j 8
+make -B install
 
 # Kaldi itself
 cd $WORKDIR
+rm -rf kaldi
 git clone -b vosk-android --single-branch https://github.com/alphacep/kaldi
 cd $WORKDIR/kaldi/src
 CXX=$CXX AR=$AR RANLIB=$RANLIB CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING" ./configure --use-cuda=no \
@@ -107,14 +114,15 @@ CXX=$CXX AR=$AR RANLIB=$RANLIB CXXFLAGS="$ARCHFLAGS -O3 -DFST_NO_DYNAMIC_LINKING
     --android-incdir=${ANDROID_TOOLCHAIN_PATH}/sysroot/usr/include \
     --host=$HOST --openblas-root=${WORKDIR}/local \
     --fst-root=${WORKDIR}/local --fst-version=${OPENFST_VERSION}
-make -j 8 depend
+make -j depend
+make -j 8
 cd $WORKDIR/kaldi/src
 make -j 8 online2 lm rnnlm
 
 # Vosk-api
 cd $WORKDIR
 mkdir -p $WORKDIR/vosk
-make -j 8 -C ${WORKDIR_BASE}/../../../src \
+make -B -j 8 -C ${WORKDIR_BASE}/../../../src \
     OUTDIR=$WORKDIR/vosk \
     KALDI_ROOT=${WORKDIR}/kaldi \
     OPENFST_ROOT=${WORKDIR}/local \
