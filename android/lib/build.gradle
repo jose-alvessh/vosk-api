@@ -29,32 +29,24 @@ android {
 task buildVosk(type: Exec) {
     commandLine './build-vosk-debug.sh'
     environment ANDROID_NDK_HOME: android.getNdkDirectory()
+    environment DT_HOME: '/home/sword/Projects/SWORD/digital-therapist'
 }
 
 dependencies {
     api 'net.java.dev.jna:jna:5.13.0@aar'
 }
 
-task copyTask(type: Copy) {
-        System.out.println( "  projectDir:   ${project.projectDir}")
-	System.out.println( "  srcDir:   ${source_dir}")
-	System.out.println( "  destDir:   ${dest_dir}")
-
-	doLast {
-		from ('source_dir')
-		into (new File('dest_dir'))
+tasks.register('copyTask') {
+    doLast {
+	copy {
+	    System.out.println( " to:   ${dest_dir}")
+	    from "${source_dir}"
+	    into "${dest_dir}"
+	    include '**/*.aar'
 	}
     }
-
-
-assemble.dependsOn copyTask
+}
 
 preBuild.dependsOn buildVosk
-
-/*mavenPublishing {
-    coordinates("com.alphacephei", archiveName, version)
-    pom {
-        name = pomName
-        description = pomDescription
-    }
-}*/
+//copyTask.dependsOn buildVosk
+assemble.dependsOn copyTask
