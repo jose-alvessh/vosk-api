@@ -141,12 +141,15 @@ public class SpeechStreamService {
                         break;
                     } else {
                         boolean isSilence = recognizer.acceptWaveForm(buffer, nread);
+
                         if (isSilence) {
                             final String result = recognizer.getResult();
-                            mainHandler.post(() -> listener.onResult(result, null));
+                            mainHandler.post(() ->
+                                    listener.onResult(result));
                         } else {
                             final String partialResult = recognizer.getPartialResult();
-                            mainHandler.post(() -> listener.onPartialResult(partialResult));
+                            mainHandler.post(() ->
+                                    listener.onPartialResult(partialResult));
                         }
                     }
 
