@@ -43,4 +43,30 @@ public interface RecognitionListener {
      * Called after timeout expired
      */
     void onTimeout();
+
+    /**
+     * Called when the log queue has more than one element and therefore the transciption is delayed
+     */
+    void onTransciptionDelayed(float chunksDelay);
+
+    /**
+     * Called when the queue is full and then we are losing data
+     */
+    void onTranscriptionFailed();
+
+    /**
+     * Send logs to thread for debug purposes
+     */
+    void log(String textPayload);
+
+    /**
+     * Called when the trascription thread is finished and the recognition process has stopped
+     * After this callback the Recognition can start again
+     */
+    void onRecognizerStopped();
+
+    /**
+     * Called when the audio has recorded a buffer
+     */
+    void onAudioRecorderBufferRead(short[] buffer, int nread);
 }

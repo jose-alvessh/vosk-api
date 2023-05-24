@@ -14,6 +14,11 @@
 
 package org.vosk.android;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 import android.os.Handler;
 import android.os.Looper;
 
@@ -131,16 +136,20 @@ public class SpeechStreamService {
                     && ((timeoutSamples == NO_TIMEOUT) || (remainingSamples > 0))) {
                 try {
                     int nread = inputStream.read(buffer, 0, buffer.length);
+
                     if (nread < 0) {
                         break;
                     } else {
                         boolean isSilence = recognizer.acceptWaveForm(buffer, nread);
+
                         if (isSilence) {
                             final String result = recognizer.getResult();
-                            mainHandler.post(() -> listener.onResult(result));
+                            mainHandler.post(() ->
+                                    listener.onResult(result));
                         } else {
                             final String partialResult = recognizer.getPartialResult();
-                            mainHandler.post(() -> listener.onPartialResult(partialResult));
+                            mainHandler.post(() ->
+                                    listener.onPartialResult(partialResult));
                         }
                     }
 

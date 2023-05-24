@@ -1,18 +1,25 @@
 def archiveName = "vosk-android"
 def pomName = "Vosk Android"
 def pomDescription = "Vosk speech recognition library for Android"
+def source_dir = "${project.projectDir}/build/outputs/aar/"
+def dest_dir = '/home/sword/Projects/SWORD/digital-therapist/speech-recognition-kaldi'
 
 android {
     namespace 'org.vosk'
     compileSdkVersion 33
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 33
-        versionCode 10
+        targetSdkVersion 29
+        versionCode 6
         versionName = version
         archivesBaseName = archiveName
         ndkVersion = "25.2.9519653"
-    }
+        ndk {
+          //  abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64', 'x86'
+	  abiFilters 'arm64-v8a'
+        }
+
+   }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -20,7 +27,7 @@ android {
 }
 
 task buildVosk(type: Exec) {
-    commandLine './build-vosk.sh'
+    commandLine './build-vosk-debug.sh'
     environment ANDROID_NDK_HOME: android.getNdkDirectory()
 }
 
@@ -28,12 +35,26 @@ dependencies {
     api 'net.java.dev.jna:jna:5.13.0@aar'
 }
 
-//preBuild.dependsOn buildVosk
+task copyTask(type: Copy) {
+        System.out.println( "  projectDir:   ${project.projectDir}")
+	System.out.println( "  srcDir:   ${source_dir}")
+	System.out.println( "  destDir:   ${dest_dir}")
 
-mavenPublishing {
+	doLast {
+		from ('source_dir')
+		into (new File('dest_dir'))
+	}
+    }
+
+
+assemble.dependsOn copyTask
+
+preBuild.dependsOn buildVosk
+
+/*mavenPublishing {
     coordinates("com.alphacephei", archiveName, version)
     pom {
         name = pomName
         description = pomDescription
     }
-}
+}*/
