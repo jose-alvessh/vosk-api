@@ -90,17 +90,20 @@ public class SpeechService {
         System.out.println("!! echo canceller is available !!");
 
         AcousticEchoCanceler acousticEchoCanceler = AcousticEchoCanceler.create(sessionID);
+
         acousticEchoCanceler.setEnabled(true);
-    } else
+    } else {
         System.out.println("!! echo canceller is NOT available !!");
+    }
 
     if (NoiseSuppressor.isAvailable()) {
         System.out.println("!! noise supressor is available !!");
 
         NoiseSuppressor noiseSupressor = NoiseSuppressor.create(sessionID);
         noiseSupressor.setEnabled(true);
-    } else
+    } else {
         System.out.println("!! noise supressor is NOT available !!");
+    }
 
 
     if (recorder.getState() == AudioRecord.STATE_UNINITIALIZED) {
@@ -329,9 +332,6 @@ public class SpeechService {
     /**
      * Class used to save the audio buffer got from AudioRecorder and the respective number of
      * shorts read
-     * @param audioBuffer - contains the buffer of audio
-     * @param nread - number of shorts read
-     *
      */
     private static final class RecordingChunk {
         private final int nread;
@@ -362,9 +362,7 @@ public class SpeechService {
 
         private boolean isToResetRecognizer = false;
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-        private boolean isToSaveAudios = false;
+        private boolean isToSaveAudios;
 
         TranscriptionThread(int queueSize, RecognitionListener recognitionListener,
                             boolean isToSaveAudios) {
@@ -387,16 +385,8 @@ public class SpeechService {
 
                     if (chunk != null) {
                         if (isToSaveAudios) {
-                            byte[] bdata = new byte[chunk.nread * 2];
-
-                            ByteBuffer.wrap(bdata).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().
-                                    put(chunk.audioBuffer, 0, chunk.nread);
-
-                            try {
-                                outputStream.write(bdata);
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
+                            mainHandler.post(() ->
+                                    recognitionListener.onAudioRecorderBufferRead(chunk.audioBuffer, chunk.nread));
                         }
 
                         // Runs the audio chunk on the model to get the transcription
@@ -408,11 +398,9 @@ public class SpeechService {
                             final String result = recognizer.getResult();
 
                             if (isToSaveAudios) {
-                                byte[] resultBuffer = outputStream.toByteArray();
-                                outputStream = new ByteArrayOutputStream();
-                                mainHandler.post(() -> recognitionListener.onResult(result, resultBuffer));
+                                mainHandler.post(() -> recognitionListener.onResult(result));
                             } else {
-                                mainHandler.post(() -> recognitionListener.onResult(result, null));
+                                mainHandler.post(() -> recognitionListener.onResult(result));
                             }
 
                         } else {

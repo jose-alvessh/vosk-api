@@ -27,7 +27,7 @@ public interface RecognitionListener {
     /**
      * Called after silence occured.
      */
-    void onResult(String hypothesis, byte[] buffer);
+    void onResult(String hypothesis);
 
     /**
      * Called after stream end.
@@ -64,4 +64,9 @@ public interface RecognitionListener {
      * After this callback the Recognition can start again
      */
     void onRecognizerStopped();
+
+    /**
+     * Called when the audio has recorded a buffer
+     */
+    void onAudioRecorderBufferRead(short[] buffer, int nread);
 }
