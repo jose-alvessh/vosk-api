@@ -80,7 +80,7 @@ public class SpeechService {
 
         bufferSize = Math.round(this.sampleRate * BUFFER_SIZE_SECONDS);
         recorder = new AudioRecord(
-                AudioSource.VOICE_CALL, this.sampleRate,
+                AudioSource.VOICE_COMMUNICATION, this.sampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT, bufferSize * 2);
 
